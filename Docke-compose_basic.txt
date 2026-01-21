@@ -1,0 +1,36 @@
+version: '3.5'
+
+services:
+  datahudi_project1:
+    container_name: datahudi_project1
+    image: django-datahudi-dev:latest
+    ports:
+      - "8001:8001"
+    networks:
+      - datahudi_network1
+    env_file:
+      - .env
+    volumes:
+      - /var/www/html/maustats/new_datasets/:/var/datasets/
+      - /var/www/html/maustats/downloads/:/var/downloads/
+      - /var/www/html/maustats/chatbot/:/opt/spark/
+  datahudi_project2:
+    container_name: datahudi_project2
+    image: django-datahudi-prod:latest
+    ports:
+      - "8000:8000"
+    networks:
+      - datahudi_network2
+    env_file:
+      - .env
+    volumes:
+      - /var/www/html/maustats/new_datasets/:/var/datasets/
+      - /var/www/html/maustats/downloads/:/var/downloads/
+      - /opt/spark/offline-jars/:/opt/spark/offline-jars/
+
+networks:
+  datahudi_network1:
+    driver: bridge
+
+  datahudi_network2:
+    driver: bridge

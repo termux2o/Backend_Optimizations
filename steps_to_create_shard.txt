@@ -1,0 +1,346 @@
+Requirements:-
+Make sure all VM machine are on same Wi-Fi/LAN and can ping each other
+Make sure IP should be static
+Please ensure mongo db version should be same Must Remeber Point
+Sharding works only when we insert new data through router not on existiing data
+--------------------------------------------------------------------------------
+Precaution:-
+
+Make sure any VM should not have the data in mongo database otherwise data may loss or unable to connect with mongodb
+---------------------------------------------------------------------------------
+This setup includes:
+ Sharding cluster components
+ 1 Config Server & Router (VM-3)
+ 2 Shards
+  ✅ Shard-1 on VM-1
+  ✅ Shard-2 on VM-2
+ 
+
+---------------------------------------------------------------------------------
+
+MongoDB Sharding Setup – Distributed Across 2 VM machine
+
+
+ Architecture Overview
+
+| Component          | VM   | IP Example    | Port  |
+| ------------------ | -------- | ------------- | ----- |
+| Config Server      | VM-3 | 192.168.1.101 | 27019 |
+| Router             | VM-3 | 192.168.1.101 | 27018 | #router is entry point for all CRUD operations
+| Shard-1 ReplicaSet | VM-1 | 192.168.1.103 | 27021 | 
+| Shard-2 ReplicaSet | VM-2 | 192.168.1.102 | 27020 |
+
+--------------------------------------------------------------------------------
+
+✅ Step 1: Stop Any Existing Mongo Processes (on all VM machines)
+
+
+Run on all machines:
+
+
+sudo pkill mongod
+sudo pkill mongos
+
+---------------------------------------------------------------------------------
+
+Step 2: Create Required Directories
+
+VM-1:
+
+sudo mkdir -p ~/data/shard1
+sudo mkdir -p ~/data/logs
+
+
+VM-2:
+
+
+sudo mkdir -p ~/data/shard2
+sudo mkdir -p ~/data/logs
+
+VM-3
+
+sudo mkdir -p ~/data/config
+sudo mkdir -p ~/data/logs
+----------------------------------------------------------------------------------
+
+Step 3: Start Config Server (VM-3 Only)
+
+Open terminal and run below command
+sudo mongod \
+  --configsvr \
+  --replSet configRS \
+  --port 27019 \
+  --dbpath ~/data/config \
+  --bind_ip 0.0.0.0 \
+  --fork \
+  --logpath ~/data/logs/config.log
+
+Open another terminal run below command
+
+mongosh --port 27019
+
+Initialize Config Server 
+
+
+rs.initiate({
+  _id: "configRS",
+  configsvr: true,
+  members: [
+    { _id: 0, host: "192.168.1.101:27019" } //192.168.1.101 this is the reachabl IP of VM3 
+  ]
+})
+
+
+## Start Router  on VM-3
+
+
+sudo mongos \
+  --configdb configRS/192.168.1.101:27019 \
+  --port 27018 \
+  --bind_ip 0.0.0.0 \
+  --fork \
+  --logpath ~/data/logs/mongos.log
+	
+If router connecting not worikng change the port and keep in the mind
+
+--------------------------------------------------------------------------------------
+
+Step 4: Start Shard-1 ReplicaSet on VM-1
+
+
+sudo mongod \
+  --shardsvr \
+  --replSet shard1RS \
+  --port 27021 \
+  --dbpath ~/data/shard1 \
+  --bind_ip 0.0.0.0 \
+  --fork \
+  --logpath ~/data/logs/shard1.log
+
+
+### Initialize Shard-1 RS
+Open new terminal and run below command
+
+mongosh --port 27021
+
+
+rs.initiate({
+  _id: "shard1RS",
+  members: [
+    { _id: 0, host: "192.168.1.103:27021" }
+  ]
+})
+
+---------------------------------------------------------------------------------
+
+Step 5: Start Shard-2 ReplicaSet on VM-2
+
+
+sudo mongod \
+  --shardsvr \
+  --replSet shard2RS \
+  --port 27020 \
+  --dbpath ~/data/shard2 \
+  --bind_ip 0.0.0.0 \
+  --fork \
+  --logpath ~/data/logs/shard2.log
+
+
+### Initialize Shard-2 RS
+
+
+mongosh --port 27020
+
+
+
+rs.initiate({
+  _id: "shard2RS",
+  members: [
+    { _id: 0, host: "192.168.1.102:27020" }
+  ]
+})
+------------------------------------------------------------------------------------
+## Step 6: Add Shards to Router
+
+Connect to router on VM-3:
+
+Open new terminal and run below command
+
+mongosh --port 27018
+
+
+Add both shards:
+
+sh.addShard("shard1RS/192.168.1.103:27021")
+sh.addShard("shard2RS/192.168.1.102:27020")
+
+Verify Cluster Status
+
+sh.status()
+
+---------------------------------------------------------------
+You should see:
+
+ ConfigRS active
+ Shard1RS + Shard2RS listed
+ Cluster health OK
+
+---
+
+## 🟢 Cluster Setup Complete
+
+Your distributed sharding cluster is now ready.
+
+Only Data sent via VM-3 Router (mongos) will be stored across shards VM machine.
+
+
+Important Notes
+
+| Point                             | Description                             |
+| --------------------------------- | --------------------------------------- |
+| LAN or Wi-Fi must be ON           | Needed for both machines to communicate |
+| Use Static IP                     | To prevent IP change issues             |
+| Don’t run `rs.initiate()` again   | Only run once during setup              |
+| Use `pkill mongod` before restart | Ensures clean restart                   |
+
+
+
+🔁 MongoDB Sharding Cluster Restart Guide
+
+This section explains how to safely stop and restart the entire sharded cluster without data loss.
+
+🔴 STOP ORDER (Very Important)
+
+Always stop in this order to avoid metadata corruption:
+
+1️⃣ Router (mongos)
+2️⃣ Shard ReplicaSets (mongod)
+3️⃣ Config Server (mongod)
+
+🛑 Stop Commands (Run on respective VMs)
+On VM-3 (Router + Config Server)
+sudo pkill mongos
+sudo pkill mongod
+
+On VM-1 (Shard-1)
+sudo pkill mongod
+
+On VM-2 (Shard-2)
+sudo pkill mongod
+
+
+✔ Ensure no Mongo processes are running:
+
+ps -ef | grep mongo
+
+🟢 START / RESTART ORDER (Mandatory)
+
+Always start in this order:
+
+1️⃣ Config Server
+2️⃣ Shard-1
+3️⃣ Shard-2
+4️⃣ Router (mongos)
+
+🔄 Restart Commands (Production-Safe)
+1️⃣ Start Config Server (VM-3)
+sudo mongod \
+  --configsvr \
+  --replSet configRS \
+  --port 27019 \
+  --dbpath ~/data/config \
+  --bind_ip 0.0.0.0 \
+  --fork \
+  --logpath ~/data/logs/config.log
+
+
+Verify:
+
+mongosh --port 27019
+rs.status()
+
+2️⃣ Start Shard-1 (VM-1)
+sudo mongod \
+  --shardsvr \
+  --replSet shard1RS \
+  --port 27021 \
+  --dbpath ~/data/shard1 \
+  --bind_ip 0.0.0.0 \
+  --fork \
+  --logpath ~/data/logs/shard1.log
+
+
+Verify:
+
+mongosh --port 27021
+rs.status()
+
+3️⃣ Start Shard-2 (VM-2)
+sudo mongod \
+  --shardsvr \
+  --replSet shard2RS \
+  --port 27020 \
+  --dbpath ~/data/shard2 \
+  --bind_ip 0.0.0.0 \
+  --fork \
+  --logpath ~/data/logs/shard2.log
+
+
+Verify:
+
+mongosh --port 27020
+rs.status()
+
+4️⃣ Start Router (mongos) – VM-3
+sudo mongos \
+  --configdb configRS/192.168.1.101:27019 \
+  --port 27018 \
+  --bind_ip 0.0.0.0 \
+  --fork \
+  --logpath ~/data/logs/mongos.log
+
+✅ Post-Restart Validation (Very Important)
+
+Connect to router:
+
+mongosh --port 27018
+
+
+Run:
+
+sh.status()
+
+
+You should see:
+
+✅ ConfigRS active
+
+✅ shard1RS & shard2RS present
+
+✅ No errors
+
+⚠️ Restart Rules (Must Read)
+Rule	                                Explanation
+❌ Do NOT run rs.initiate() again	ReplicaSet metadata already exists
+❌ Do NOT add shards again	        Already registered in config server
+✅ Always use same ports	        Ports are tied to replica metadata
+✅ Start order matters	                Prevents router/config mismatch
+❌ Never delete /data directory	Permanent data loss
+
+
+🧪 Quick Health Check Commands
+db.adminCommand({ listDatabases: 1 })
+sh.getBalancerState()
+
+✅ Final Status
+
+Your MongoDB 2-shard distributed cluster can now:
+
+🔄 Restart safely
+
+📦 Retain data
+
+⚖ Balance chunks correctly
+
+🚀 Serve production workloads
+

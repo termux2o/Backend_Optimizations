@@ -1,0 +1,285 @@
+MONGODB INDEXING – COMPLETE GUIDE
+WHAT IS INDEXING?
+
+An index in MongoDB is a special data structure that improves the speed of data retrieval operations on a collection.
+
+Without indexes:
+
+MongoDB performs a collection scan
+
+Every document is checked one by one (slow)
+
+With indexes:
+
+MongoDB uses B-Tree indexes
+
+Data lookup becomes fast (O(log n))
+
+WHY INDEXING IS IMPORTANT
+
+Improves query performance
+
+Reduces CPU & disk usage
+
+Enables sorting and range queries
+
+Required for sharding (shard key must be indexed)
+
+Helps enforce uniqueness
+
+DEFAULT INDEX
+
+MongoDB automatically creates an index on:
+
+_id
+
+
+Command to view:
+db.collection.getIndexes()
+
+HOW TO CREATE INDEX
+
+Basic Index:
+db.users.createIndex({ name: 1 })
+
+Descending Order:
+db.users.createIndex({ age: -1 })
+
+TYPES OF INDEXES IN MONGODB
+
+SINGLE FIELD INDEX
+
+Index on one field.
+
+db.users.createIndex({ email: 1 })
+
+
+Use case:
+
+Search by one column
+
+COMPOUND INDEX
+
+Index on multiple fields.
+
+db.users.createIndex({ country: 1, age: -1 })
+
+
+Rule:
+
+Order of fields matters
+
+Left-prefix rule applies
+
+Good for:
+
+Queries using both fields
+
+Sorting
+
+MULTI-KEY INDEX
+
+Created automatically when indexing array fields.
+
+db.orders.createIndex({ items: 1 })
+
+
+If "items" is an array:
+
+MongoDB creates multi-key index
+
+Limitation:
+
+Only one array field allowed per index
+
+UNIQUE INDEX
+
+Ensures field values are unique.
+
+db.users.createIndex({ email: 1 }, { unique: true })
+
+
+Prevents:
+
+Duplicate values
+
+PARTIAL INDEX
+
+Indexes only documents matching a condition.
+
+db.users.createIndex(
+  { age: 1 },
+  { partialFilterExpression: { age: { $gte: 18 } } }
+)
+
+
+Advantage:
+
+Smaller index size
+
+Faster performance
+
+SPARSE INDEX
+
+Indexes only documents where field exists.
+
+db.users.createIndex({ phone: 1 }, { sparse: true })
+
+
+Note:
+
+Missing fields are ignored
+
+TEXT INDEX
+
+Used for text search.
+
+db.articles.createIndex({ content: "text" })
+
+
+Search:
+db.articles.find({ $text: { $search: "mongodb indexing" } })
+
+Limitation:
+
+Only ONE text index per collection
+
+HASHED INDEX
+
+Used mainly for sharding.
+
+db.users.createIndex({ userId: "hashed" })
+
+
+Best for:
+
+Even data distribution
+
+Not good for:
+
+Range queries
+
+TTL (TIME TO LIVE) INDEX
+
+Automatically deletes documents after time.
+
+db.sessions.createIndex(
+  { createdAt: 1 },
+  { expireAfterSeconds: 3600 }
+)
+
+
+Use case:
+
+Logs
+
+Sessions
+
+Cache
+
+GEOSPATIAL INDEX
+
+Used for location-based queries.
+
+2D Index:
+db.places.createIndex({ location: "2d" })
+
+2dsphere Index:
+db.places.createIndex({ location: "2dsphere" })
+
+INDEX MANAGEMENT
+
+View Indexes:
+db.users.getIndexes()
+
+Drop Index:
+db.users.dropIndex({ email: 1 })
+
+Drop All Indexes:
+db.users.dropIndexes()
+
+INDEX PERFORMANCE ANALYSIS
+
+Explain Query:
+db.users.find({ age: 25 }).explain("executionStats")
+
+Important fields:
+
+IXSCAN → index used
+
+COLLSCAN → no index used
+
+executionTimeMillis
+
+INDEX LIMITATIONS
+
+Indexes consume RAM
+
+Too many indexes slow writes
+
+Each index increases disk usage
+
+Index size should fit in RAM
+
+INDEXING IN SHARDED CLUSTER
+
+Shard key must be indexed
+
+Use hashed index for even distribution
+
+Compound shard keys must follow query patterns
+
+Example:
+sh.shardCollection("shop.orders", { orderId: "hashed" })
+
+BEST PRACTICES
+
+Create indexes based on query patterns
+
+Avoid unnecessary indexes
+
+Monitor index usage
+
+Use compound indexes carefully
+
+Prefer partial indexes over sparse
+
+Test with explain()
+
+COMMON INTERVIEW QUESTIONS
+
+Q: What happens without index?
+A: Collection scan
+
+Q: Which data structure MongoDB uses?
+A: B-Tree
+
+Q: Can we have multiple text indexes?
+A: No
+
+Q: Does index speed up writes?
+A: No, it slows down writes
+
+Q: What is left-prefix rule?
+A: Compound index works from leftmost field
+
+CHEAT SHEET
+
+Create Index:
+db.col.createIndex({ field: 1 })
+
+View Index:
+db.col.getIndexes()
+
+Explain:
+db.col.find(query).explain("executionStats")
+
+END OF DOCUMENT
+
+If you want next:
+
+🔹 Indexing vs Sharding comparison
+
+🔹 Real-world indexing strategy
+
+🔹 Indexing mistakes in production
